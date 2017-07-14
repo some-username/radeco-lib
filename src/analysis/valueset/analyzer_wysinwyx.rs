@@ -493,10 +493,10 @@ where RFn: RFunction + Clone,
                         size: None, // FIXME
                     };
                     let content = self.compute_abstract_value(node);
-                    debug!("Computed concrete value: {}", content);
+                    debug!("Computed abstract value: {}", content);
                     self.a_store_fn.store.insert(a_loc.clone(), content);
                 }
-                debug!("Computet a-loc for SSA-node");
+                debug!("Computed a-loc for SSA-node");
 
                 //compute a-loc/check for existing a-loc
                 if let Some((a_loc_base, a_loc_offs)) =
