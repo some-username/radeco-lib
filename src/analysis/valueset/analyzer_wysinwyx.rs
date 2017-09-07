@@ -379,6 +379,7 @@ where RFn: RFunction + Clone,
     // currently returns stuff with ambigous meaning:
     //      on OpStore returns the content of the a-loc
     //      instead of a-loc offset (which is already included in the a-loc)
+    // -> separate functionality
     fn compute_a_loc(&self, node: <<RFn as RFunction>::SSA as SSA>::ValueRef)
     -> Option<(A_Loc<<<RFn as RFunction>::SSA as SSA>::ValueRef>, i64)>
     {
