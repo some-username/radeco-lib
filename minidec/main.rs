@@ -138,21 +138,20 @@ fn main() {
             mssa.run();
             mssa
         };
-        //if false {
-        //    if (!rfn.name.eq("sym.main")) & (!rfn.name.eq("main")) {
-        //        continue;
-        //    }
-        //    println!("  [*] Analyzing Value Sets");
-        //    let fn_analyzer = FnAnalyzer::from((*rfn).clone());
-        //    let a_store_fn = fn_analyzer.analyze_rfn();
-        //    for (a_loc, strided_interval) in a_store_fn.store {
-        //        if let A_Loc{addr: AbstractAddress::Node{..}, ..} = a_loc {
-        //            continue;
-        //        };
-        //        println!("{}", a_loc);
-        //        println!("Strided Interval: {}", strided_interval);
-        //    };
-        //}
+        if (!rfn.name.eq("sym.main")) & (!rfn.name.eq("main")) {
+            continue;
+        }
+        println!("  [*] Analyzing Value Sets");
+        let fn_analyzer = FnAnalyzer::from((*rfn).clone());
+        let a_store_fn = fn_analyzer.analyze_rfn();
+        for (a_loc, strided_interval) in a_store_fn.store {
+            if let A_Loc{addr: AbstractAddress::Node{..}, ..} = a_loc {
+                continue;
+            };
+            println!("{}", a_loc);
+            println!("Strided Interval: {}", strided_interval);
+        };
+        println!("  [*] Writing out IR");
 
         let mut fname = PathBuf::from(&dir);
         fname.push(&rfn.name);

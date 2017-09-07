@@ -341,6 +341,36 @@ where RFn: RFunction + Clone,
             }, // FIXME
         }
     }
+
+    //// This is a draft
+    ////  - Take same signature as compute_a_loc() as this is to be
+    ////    replaced, not sure whether this is a good idea
+    ////    - prob. makes no sense, transformations 'happen' on abstract stores
+    //// TODO: return or modify abstract store? (tend to return - gives
+    ////       the caller the possibility of storing themselve - but why
+    ////       should they?)
+    //fn transform_op(&self,
+    //                node: <<RFn as RFunction>::SSA as SSA>::ValueRef,
+    //                a_store: AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>)
+    //-> AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>
+    //{
+    //    let node_data = self.ssa.get_node_data(&node).expect("No node data.");
+    //    let ValueType::Integer {width} = node_data.vt;
+    //    let op_type = node_data.nt;
+    //    let operands = self.ssa.get_operands(&node);
+    //    match op_type {
+    //        NodeType::Comment(ref c) if is_register(c) => {
+    //            Some((A_Loc {
+    //                addr: AbstractAddress::Reg {
+    //                    reg_name: c.clone(),
+    //                },
+    //                size: Some(width as i64),
+    //            }, 0))
+    //        },
+    //        _ => {}
+    //    }
+    //}
+
  
     /// Computes either underlying register or memory region plus offset
     /// takes a node as argument
@@ -567,12 +597,11 @@ mod vsa {
     use frontend::source::FileSource;
 
     #[test]
-    #[ignore]
-    // Disable it temporarily.
+    #[disable]
     fn exist_ssa() {
         let mut fsource = FileSource::open(Some("./test_files/ct1_sccp_ex/ct1_sccp_ex"));
         let rmod = RadecoModule::from(&mut fsource);
-    
+
         let a_store = rmod.analyze_value_sets_ssa ();
     }
 }
