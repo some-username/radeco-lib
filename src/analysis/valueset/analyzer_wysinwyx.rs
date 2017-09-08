@@ -250,7 +250,8 @@ where RFn: RFunction + Clone,
                 let target_node = operands[1];
                 let value_node  = operands[2];
                 let (a_loc_base_stored, a_loc_offs_stored) =
-                    self.compute_a_loc(target_node)
+                    //self.compute_a_loc(target_node)
+                    self.stored_content(target_node)
                     .expect("No base a-loc to store operation");
                 debug!("\t\t\t\tcomparing to:\n\t\t\t{}, {}",
                        a_loc_base_stored, a_loc_offs_stored);
@@ -343,12 +344,17 @@ where RFn: RFunction + Clone,
     }
 
     //// This is a draft
-    ////  - Take same signature as compute_a_loc() as this is to be
+    ////  - Take similar signature as compute_a_loc() as this is to be
     ////    replaced, not sure whether this is a good idea
     ////    - prob. makes no sense, transformations 'happen' on abstract stores
     //// TODO: return or modify abstract store? (tend to return - gives
     ////       the caller the possibility of storing themselve - but why
     ////       should they?)
+    ////  - have
+    ////    - a general transform fkn which
+    ////      - checks for existence in abs env
+    ////      - selects concrete transform (possible?)
+    ////    - multiple concrete transforms that deal with details
     //fn transform_op(&self,
     //                node: <<RFn as RFunction>::SSA as SSA>::ValueRef,
     //                a_store: AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>)
@@ -427,35 +433,6 @@ where RFn: RFunction + Clone,
                 }, 0))
             },
             NodeType::Comment(c) => None, // TODO
-            NodeType::Op(MOpcode::OpStore) => { //TODO
-                // should return set of all a-loc that have been written to
-                // up to 'now'
-                // value that will be stored in the a-loc
-                let mem_state   = operands[0];
-                let target_node = operands[1];
-                let value_node  = operands[2];
-                let value = self.compute_abstract_value(value_node).as_const();
-                // TODO we want to get value of a-loc, too
-                if let Some((a_loc_base, a_loc_offs)) =
-                    self.compute_a_loc(target_node) {
-                        if let A_Loc{
-                            addr: AbstractAddress::Reg{ reg_name: reg_name},
-                            ..} = a_loc_base {
-                                let mem_reg = if reg_name.eq("rip") { // what about "mem"?
-                                    MemRegion{region_type: MemRegionType::Global}
-                                } else {
-                                    self.mem_reg_local.clone()
-                                };
-                                Some ((A_Loc {
-                                    addr: AbstractAddress::MemAddr {
-                                        region: mem_reg,
-                                        offset: a_loc_offs,
-                                    },
-                                    size: Some(width as i64),
-                                }, value))
-                            } else {None}
-                } else {None}
-            },
             NodeType::Op(MOpcode::OpLoad) => {None}, // TODO
             NodeType::Op(m_opcode) => {
                 if operands.len() >= 2 {
@@ -487,6 +464,50 @@ where RFn: RFunction + Clone,
                 }
             },
             NodeType::Undefined => None,
+        }
+    }
+
+    // Try to separate functionality of compute_a_loc()
+    fn stored_content(&self, node: <<RFn as RFunction>::SSA as SSA>::ValueRef)
+    -> Option<(A_Loc<<<RFn as RFunction>::SSA as SSA>::ValueRef>, i64)>
+    {
+        debug!("compute_a_loc({:?})", node);
+        debug!("\tcalc: {:?}", self.print_node_as_comp(node));
+        let node_data = self.ssa.get_node_data(&node).expect("No node data.");
+        let ValueType::Integer {width} = node_data.vt;
+        let op_type = node_data.nt;
+        let operands = self.ssa.get_operands(&node);
+        match op_type {
+            NodeType::Op(MOpcode::OpStore) => { //TODO
+                // should return set of all a-loc that have been written to
+                // up to 'now'
+                // value that will be stored in the a-loc
+                let mem_state   = operands[0];
+                let target_node = operands[1];
+                let value_node  = operands[2];
+                let value = self.compute_abstract_value(value_node).as_const();
+                // TODO we want to get value of a-loc, too
+                if let Some((a_loc_base, a_loc_offs)) =
+                    self.stored_content(target_node) {
+                        if let A_Loc{
+                            addr: AbstractAddress::Reg{ reg_name: reg_name},
+                            ..} = a_loc_base {
+                                let mem_reg = if reg_name.eq("rip") { // what about "mem"?
+                                    MemRegion{region_type: MemRegionType::Global}
+                                } else {
+                                    self.mem_reg_local.clone()
+                                };
+                                Some ((A_Loc {
+                                    addr: AbstractAddress::MemAddr {
+                                        region: mem_reg,
+                                        offset: a_loc_offs,
+                                    },
+                                    size: Some(width as i64),
+                                }, value))
+                            } else {None}
+                } else {None}
+            },
+            _ => self.compute_a_loc (node),
         }
     }
 
