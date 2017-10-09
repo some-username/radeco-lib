@@ -355,9 +355,9 @@ where RFn: RFunction + Clone,
     ////      - checks for existence in abs env
     ////      - selects concrete transform (possible?)
     ////    - multiple concrete transforms that deal with details
-    //fn transform_op(&self,
-    //                node: <<RFn as RFunction>::SSA as SSA>::ValueRef,
-    //                a_store: AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>)
+    //fn transform_node(&self,
+    //                  node: <<RFn as RFunction>::SSA as SSA>::ValueRef,
+    //                  a_store: AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>)
     //-> AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>
     //{
     //    let node_data = self.ssa.get_node_data(&node).expect("No node data.");
@@ -468,13 +468,14 @@ where RFn: RFunction + Clone,
         }
     }
 
+    /// Returns content of a-loc (of OpStore, if not OpStore, compute a-loc)
     // Try to separate functionality of compute_a_loc()
     // TODO cleanup
     // TODO more sane function signature
     fn stored_content(&self, node: <<RFn as RFunction>::SSA as SSA>::ValueRef)
     -> Option<(A_Loc<<<RFn as RFunction>::SSA as SSA>::ValueRef>, i64)>
     {
-        debug!("compute_a_loc({:?})", node);
+        debug!("stored_content({:?})", node);
         debug!("\tcalc: {:?}", self.print_node_as_comp(node));
         let node_data = self.ssa.get_node_data(&node).expect("No node data.");
         let ValueType::Integer {width} = node_data.vt;
