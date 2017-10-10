@@ -15,7 +15,7 @@ use std::borrow::Cow;
 pub type Address = u64;
 
 /// Used to describe the width of an operand/operation in a SSA Node.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum WidthSpec {
     /// Takes whatever width the other operation takes
     Adaptive,

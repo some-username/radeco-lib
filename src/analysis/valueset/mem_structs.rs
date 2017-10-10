@@ -14,6 +14,7 @@ use super::{AbstractValue,StridedInterval_u};
 
 use middle::ssa::ssa_traits;
 use middle::ssa::ssastorage::{SSAStorage};
+use middle::ir::WidthSpec;
 
 /// Type of a memory region
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
@@ -103,11 +104,11 @@ pub struct A_Loc<T> {
     //offset: i64,
     //pub addr: AbstractAddress,
     pub addr: AbstractAddress<T>,
-    pub size: Option<i64>,
+    pub size: Option<WidthSpec>,
 }
 
 impl<T> A_Loc<T> {
-    fn new(region: MemRegion, offset: i64, size: Option<i64>) -> A_Loc<T> {
+    fn new(region: MemRegion, offset: i64, size: Option<WidthSpec>) -> A_Loc<T> {
         A_Loc {
             addr: AbstractAddress::MemAddr {
                 region: region,
@@ -125,7 +126,7 @@ impl<T> fmt::Display for A_Loc<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.size {
             Some(size)
-                => write!(f, "a-loc: {} ({})", self.addr, size),
+                => write!(f, "a-loc: {} ({:?})", self.addr, size),
             None
                 => write!(f, "a-loc: {} (unknown size)", self.addr),
         }

@@ -25,7 +25,7 @@ use frontend::source::Source;
 use middle::ssa::ssa_traits::NodeData as TNodeData;
 use middle::ssa::ssa_traits::{SSA,NodeType,ValueType};
 use middle::ssa::ssastorage::{NodeData,SSAStorage};
-use middle::ir::{MOpcode,MAddress,MArity};
+use middle::ir::{MOpcode,MAddress,MArity,WidthSpec};
 use middle::ir_writer::{IRWriter};
 
 use r2api::structs::{LRegInfo};
@@ -143,11 +143,11 @@ where RFn: RFunction + Clone,
     fn print_node_as_comp(&self,
                           node: <<RFn as RFunction>::SSA as SSA>::ValueRef)
     -> String {
-        let op_type = self.ssa.get_node_data(&node).expect("No node data.").nt;
+        let op_type = self.ssa.node_data(node).expect("No node data.").nt;
         //debug!("print_node: {:?}", op_type);
         match op_type {
             NodeType::Op(opcode) => {
-                let ops = self.ssa.get_operands(&node);
+                let ops = self.ssa.operands_of(node);
                 match opcode.arity() {
                     MArity::Zero => {
                         match opcode {
@@ -203,7 +203,7 @@ where RFn: RFunction + Clone,
             //NodeType::Phi => format!("(Phi)"),
             NodeType::Phi => {
                 let mut ret = format!("Phi(");
-                let ops = self.ssa.get_operands(&node);
+                let ops = self.ssa.operands_of(node);
                 for op in ops {
                     ret = ret + &format!("{}, ", self.print_node_as_comp(op));
                 }
@@ -230,13 +230,13 @@ where RFn: RFunction + Clone,
         debug!("compute_loaded_value({:?})", node);
         debug!("\tcalc: {}", self.print_node_as_comp(node));
         debug!("\ta-loc base: {}, offs: {}", a_loc_base, a_loc_offs);
-        let node_data = self.ssa.get_node_data(&node).expect("No node data.");
+        let node_data = self.ssa.node_data(node).expect("No node data.");
         let op_type = node_data.nt;
-        let operands = self.ssa.get_operands(&node);
+        let operands = self.ssa.operands_of(node);
         //debug!("\toperands: {:?}", operands);
         //debug!("\t\t{:?} - {:?}", op_type, node);
         //for op in &operands {
-        //    let nd = self.ssa.get_node_data(&op).expect("No node data.");
+        //    let nd = self.ssa.node_data(&op).expect("No node data.");
         //    debug!("\t\t\t{:?}", nd.nt);
         //}
         match op_type {
@@ -292,10 +292,10 @@ where RFn: RFunction + Clone,
                               node: <<RFn as RFunction>::SSA as SSA>::ValueRef)
     -> StridedInterval_u
     {
-        let node_data = self.ssa.get_node_data(&node).expect("No node data.");
+        let node_data = self.ssa.node_data(node).expect("No node data.");
         let op_type = node_data.nt;
-        let operands = self.ssa.get_operands(&node);
-        debug!("compute_concrete_value({:?})", node);
+        let operands = self.ssa.operands_of(node);
+        debug!("compute_abstract_value({:?})", node);
         debug!("\tcalc: {:?}", self.print_node_as_comp(node));
         debug!("\toperands: {:?}", operands);
         match op_type {
@@ -360,17 +360,17 @@ where RFn: RFunction + Clone,
     //                  a_store: AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>)
     //-> AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>
     //{
-    //    let node_data = self.ssa.get_node_data(&node).expect("No node data.");
+    //    let node_data = self.ssa.node_data(node).expect("No node data.");
     //    let ValueType::Integer {width} = node_data.vt;
     //    let op_type = node_data.nt;
-    //    let operands = self.ssa.get_operands(&node);
+    //    let operands = self.ssa.operands_of(node);
     //    match op_type {
     //        NodeType::Comment(ref c) if is_register(c) => {
     //            Some((A_Loc {
     //                addr: AbstractAddress::Reg {
     //                    reg_name: c.clone(),
     //                },
-    //                size: Some(width as i64),
+    //                size: Some(width),
     //            }, 0))
     //        },
     //        _ => {}
@@ -392,10 +392,11 @@ where RFn: RFunction + Clone,
     {
         debug!("compute_a_loc({:?})", node);
         debug!("\tcalc: {:?}", self.print_node_as_comp(node));
-        let node_data = self.ssa.get_node_data(&node).expect("No node data.");
-        let ValueType::Integer {width} = node_data.vt;
+        let node_data = self.ssa.node_data(node).expect("No node data.");
+        let width = *node_data.vt.width();
         let op_type = node_data.nt;
-        let operands = self.ssa.get_operands(&node);
+        let operands = self.ssa.operands_of(node);
+        debug!("\toperands: {:?}", operands);
         match op_type {
             //NodeType::Comment(ref c) if is_stack_pointer(c) => {
             // just found a stack pointer - nothing special
@@ -413,16 +414,17 @@ where RFn: RFunction + Clone,
             //},
             //NodeType::Comment(ref c) if is_base_pointer(c) => {
             NodeType::Comment(ref c) if is_register(c) => {
+                debug!("\tFound register {:?}", c);
                 Some((A_Loc {
                     addr: AbstractAddress::Reg {
                         reg_name: c.clone(),
                     },
-                    size: Some(width as i64),
+                    size: Some(width),
                 }, 0))
             },
             NodeType::Comment(ref c) if c.eq("mem") => {
                 // TODO Probably not what we want, but easier to detect in the end
-                debug!("Found Global a-loc (compute_a_loc), offs: 0");
+                debug!("\tFound Global a-loc (compute_a_loc), offs: 0");
                 Some((A_Loc {
                     addr: AbstractAddress::MemAddr {
                         // TODO Have *one* global memregion
@@ -430,39 +432,54 @@ where RFn: RFunction + Clone,
                         // TODO 0 is probably not the right offset
                         offset: 0,
                     },
-                    size: Some(width as i64),
+                    size: Some(width),
                 }, 0))
             },
-            NodeType::Comment(c) => None, // TODO
-            NodeType::Op(MOpcode::OpLoad) => {None}, // TODO
+            NodeType::Comment(c) => {
+                warn!("\tUnknown Comment: {:?}", c);
+                None // TODO
+            },
+            NodeType::Op(MOpcode::OpLoad) => {
+                warn!("\tfound OpLoad"); // this should not be called on load
+                None
+            },
             NodeType::Op(m_opcode) => {
+                debug!("\tFound operation: {:?}",m_opcode);
+                // somehow, OpAdd seems to have lhs and rhs interchanged
+                let lhs_index;
+                match m_opcode {
+                    MOpcode::OpAdd => {lhs_index = 1;},
+                    _ => {lhs_index = 0;},
+                }
                 if operands.len() >= 2 {
                     let update = self.compute_abstract_value(operands[1]).as_const();
                     if let Some((a_loc_base, a_loc_offs)) =
-                        self.compute_a_loc(self.ssa.lhs(&node)) {
+                        self.compute_a_loc(operands[lhs_index]) { //lhs
                             Some((a_loc_base,
                                   perform_op(m_opcode, vec![a_loc_offs, update]))) //TODO
                     } else {None}
-                } else if operands.len() >= 1 {
+                } else if operands.len() >= 1 { // unary operations
                     let update = self.compute_abstract_value(operands[0]).as_const();
                     if let Some((a_loc_base, a_loc_offs)) =
-                        self.compute_a_loc(self.ssa.lhs(&node)) {
+                        self.compute_a_loc(operands[0]) { //lhs
                             Some((a_loc_base,
                                   perform_op(m_opcode, vec![a_loc_offs, update]))) //TODO
                     } else {None}
                 } else {None}
             },
             NodeType::Phi => {
-                // TODO will this code ever be executed?
-                // For the case both a-locs are the same, simply return
-                let a_loc_off_a = self.compute_a_loc(operands[0]);
-                let a_loc_off_b = self.compute_a_loc(operands[1]);
-                if a_loc_off_a == a_loc_off_b {
-                    a_loc_off_a
-                } else {
-                    warn!("don't know which a-loc to return");
-                    None // TODO what to do otherwise?
-                }
+                //// For the case both a-locs are the same, simply return
+                //let a_loc_off_a = self.compute_a_loc(operands[0]);
+                //let a_loc_off_b = self.compute_a_loc(operands[1]);
+                //if a_loc_off_a == a_loc_off_b {
+                //    a_loc_off_a
+                //} else {
+                //    warn!("don't know which a-loc to return");
+                //    None // TODO what to do otherwise?
+                //}
+
+                // ssa changed in a way that Phis have only one parameter
+                self.compute_a_loc(operands[0])
             },
             NodeType::Undefined => None,
         }
@@ -477,10 +494,10 @@ where RFn: RFunction + Clone,
     {
         debug!("stored_content({:?})", node);
         debug!("\tcalc: {:?}", self.print_node_as_comp(node));
-        let node_data = self.ssa.get_node_data(&node).expect("No node data.");
-        let ValueType::Integer {width} = node_data.vt;
+        let node_data = self.ssa.node_data(node).expect("No node data.");
+        let width = *node_data.vt.width();
         let op_type = node_data.nt;
-        let operands = self.ssa.get_operands(&node);
+        let operands = self.ssa.operands_of(node);
         match op_type {
             NodeType::Op(MOpcode::OpStore) => { //TODO
                 // should return set of all a-loc that have been written to
@@ -506,7 +523,7 @@ where RFn: RFunction + Clone,
                                         region: mem_reg,
                                         offset: a_loc_offs,
                                     },
-                                    size: Some(width as i64),
+                                    size: Some(width),
                                 }, value))
                             } else {None}
                 } else {None}
@@ -516,28 +533,29 @@ where RFn: RFunction + Clone,
     }
 
     /// Analyze a single function.
+    /// Computes the a-loc and its content for each node that is an expression
     //TODO: rename -> analyze ?
     pub fn analyze_rfn(mut self)
         -> AbstractStore<<<RFn as RFunction>::SSA as SSA>::ValueRef>
     {
         // mem region for function
         info!("analyzing function");
-        for node in self.ssa.nodes() {
+        for node in self.ssa.values() {
             debug!("analyzing node: {:?}", node);
-            if let Ok(node_data) = self.ssa.get_node_data(&node) {
+            if let Ok(node_data) = self.ssa.node_data(node) {
                 debug!("\t\tnode data: {:?}", node_data);
                 debug!("\t\tcalc: {}", self.print_node_as_comp (node));
                 debug!("\t\tvalue: {}", self.compute_abstract_value (node));
             }
-            if self.ssa.is_expr (&node) {
+            if self.ssa.is_expr (node) {
                 debug!("\t\tis expr: {:?}", node);
-                //debug!("\t\toperands: {:?}", self.ssa.get_operands(&node));
-                //debug!("\t\tnode data: {:?}", self.ssa.get_node_data(&node));
+                //debug!("\t\toperands: {:?}", self.ssa.operands_of(node));
+                //debug!("\t\tnode data: {:?}", self.ssa.node_data(node));
                 debug!("\t\tcalc: {}", self.print_node_as_comp (node));
                 debug!("\t\tvalue: {}", self.compute_abstract_value (node));
-                //debug!("\t\t#operands ({}):", self.ssa.get_operands(&node).len());
-                //for operand in self.ssa.get_operands (&node) {
-                //    debug!("\t\t\t{:?}", self.ssa.get_node_data(&operand));
+                //debug!("\t\t#operands ({}):", self.ssa.operands_of(node).len());
+                //for operand in self.ssa.operands_of (node) {
+                //    debug!("\t\t\t{:?}", self.ssa.node_data(&operand));
                 //    //debug!("\t\t\tinvolved regs:");
                 //    //for reg in involved_registers (self.ssa, operand) {
                 //    //    debug!("\t\t\t\t{:?}", reg);
@@ -559,7 +577,7 @@ where RFn: RFunction + Clone,
                 if let Some((a_loc_base, a_loc_offs)) =
                     self.compute_a_loc(node) {
                         debug!("Computed a-loc");
-                        let op_type = self.ssa.get_node_data(&node)
+                        let op_type = self.ssa.node_data(node)
                                           .expect("No node data.").nt;
                         //debug!("{:?}", op_type);
                         debug!("calc: {}", self.print_node_as_comp (node));
